@@ -1,0 +1,46 @@
+services:
+  dynamodb:
+    image: "amazon/dynamodb-local:latest"
+    container_name: auth_service_dynamodb
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          '[ "$(curl -s -o /dev/null -I -w ''%{http_code}'' http://localhost:8000)" == "400" ]',
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  setup_dynamodb:
+    image: amazon/aws-cli
+    container_name: auth_service_setup_dynamodb
+    depends_on:
+      dynamodb:
+        condition: service_healthy
+      dynamodb_admin:
+        condition: service_started
+    environment:
+      - AWS_DEFAULT_REGION=eu-west-1
+      - AWS_ACCESS_KEY_ID=local
+      - AWS_SECRET_ACCESS_KEY= local
+      - AWS_ENDPOINT=--endpoint-url=http://dynamodb:8000
+    entrypoint: /bin/sh -c
+    volumes:
+      - ./scripts:/scripts
+    command: ["cd /scripts && ./create-table.sh"]
+
+  dynamodb_admin:
+    image: aaronshaf/dynamodb-admin
+    container_name: auth_service_dynamodb_admin
+    ports:
+      - "8001:8001"
+    environment:
+      - DYNAMO_ENDPOINT=http://dynamodb:8000
+      - AWS_REGION=eu-west-1
+      - AWS_ACCESS_KEY_ID=local
+      - AWS_SECRET_ACCESS_KEY= local
+    depends_on:
+      - dynamodb
